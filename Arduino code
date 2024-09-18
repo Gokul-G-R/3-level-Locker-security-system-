@@ -1,0 +1,254 @@
+// Include LCD display library for I2C
+#include <LiquidCrystal_I2C.h>
+// Include Keypad library
+#include <Keypad.h>
+#include <SoftwareSerial.h>
+#include <Servo.h>
+
+
+const int ServoPin = 13;
+bool level3=false;
+
+Servo servo;
+
+SoftwareSerial SIM900A(10,11);
+int randomNumber;
+int angle=0;
+
+
+const int Password_Length = 4; // Password Length
+String Data; // Character to hold password input
+String Master = "5555"; // Password
+
+bool level1 = false;
+bool level2;
+int chance = 0;
+
+
+const int Password_Length1 = 4; // Password Length
+String Data1; // Character to hold password input
+String Master1; // Password
+int chance1 = 0;
+
+const byte ROWS = 4; // Constants for row and column sizes
+const byte COLS = 4;
+
+// Array to represent keys on keypad
+char hexaKeys[ROWS][COLS] = {
+    {'1', '2', '3', 'A'},
+    {'4', '5', '6', 'B'},
+    {'7', '8', '9', 'C'},
+    {'*', '0', '#', 'D'}};
+
+byte rowPins[ROWS] = {9, 8, 7, 6}; // Connections to Arduino
+byte colPins[COLS] = {5, 4, 3, 2};
+
+Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); // Create keypad object
+
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Create LCD object : Use 0x27 If 0x3F Doesn't work
+
+void setup()
+{   
+   
+  SIM900A.begin(9600); // GSM Module Baud rate – communication speed
+    Serial.begin(9600); // Ba
+   // Serial.println ("Type s to send message or r to receive message");
+    randomSeed(analogRead(0));
+    lcd.init();    // Setup LCD with backlight and initialize
+    lcd.backlight();
+    lcd.clear(); // Clear LCD
+     servo.attach(ServoPin);
+   servo.write(180);
+}
+
+void loop()
+{
+	
+   // Level 1
+    while (!level1)
+    {
+        lcd.setCursor(0, 0); // Initialize LCD and print
+        lcd.print("Enter Password:");
+
+        char customKey = customKeypad.getKey(); // Look for keypress
+        if (customKey)
+        {
+            Data += customKey;                 // Enter keypress into array and increment counter
+            lcd.setCursor(Data.length() - 1, 1); // Set cursor position
+            lcd.print(customKey);                // Print key pressed
+        }
+
+        if (Data.length() == Password_Length) // See if we have reached the password length
+        {
+            lcd.clear();
+            if (Data == Master)
+
+
+            {   
+              randomNumber = random(1000, 10000);
+              lcd.print("Correct Password"); 
+              delay(100);
+              
+              
+               lcd.print(randomNumber);
+               delay(500);
+              
+               Serial.println(randomNumber);
+                sendotp(randomNumber);
+                 
+        
+                Master1 = String(randomNumber);
+                lcd.clear();
+                lcd.print("OTP SENT");
+                delay(1000);
+                lcd.clear();
+                level1 = true;
+                level2 = false;
+                
+              break;// Move to level 2
+            }
+            else
+            {
+                // Incorrect Password
+                lcd.print("Incorrect password");
+                delay(1000);
+                lcd.clear();
+                Data = ""; // Clear data
+            }
+        }
+    }
+     
+    // Level 2
+    while (!level2)
+    {   
+          
+
+        lcd.setCursor(0, 0); 
+        // Initialize LCD and print
+        lcd.print("Enter OTP:");
+      
+        char customKey = customKeypad.getKey(); // Look for keypress
+        if (customKey)
+        {
+            Data1 += customKey;                 // Enter keypress into array and increment counter
+            lcd.setCursor(Data1.length() - 1, 1); // Set cursor position
+            lcd.print(customKey);                // Print key pressed
+        }
+
+        if (Data1.length() == Password_Length1) // See if we have reached the password length
+        {
+            lcd.clear();
+            if (Data1 == Master1)
+            {
+                // Correct Password
+             	 level2 = true;
+             	 level3=false;
+                 lcd.print("Correct OTP");
+               delay(1000);   // Move to level 2
+                lcd.clear();
+    
+               clearData();
+            }
+            else
+            {
+                // Incorrect Password
+                lcd.print("Incorrect OTP");
+                delay(1000);
+                lcd.clear();
+                clearData();// Clear data
+            }
+        }
+    }
+    // Level 3 and further logic can be added here if needed
+
+while(level3==false){
+       lcd.setCursor(0, 0); 
+       lcd.print("Show face");
+        char  command='0';
+      if (Serial.available() > 0) { 
+         // Check if data is available to read
+        
+        command = Serial.read();  // Read the incoming byte
+
+    // Check the received command
+    if (command == '1') 
+    {  command = '0';
+       lcd.clear();
+       lcd.print("Face unlocked");
+       delay(2000); 
+      while(level3==false){
+       
+      lcd.clear();
+      lcd.print("door unlocked");
+      delay(2000);
+      for(angle = 180; angle >= 90; angle--)
+       {
+          servo.write(angle);
+          delay(30);
+       }
+        delay(6000);
+    // now scan back from 180 to 0 degrees
+       lcd.clear();
+       lcd.print("door locked");
+       delay(2000); 
+
+    for(angle = 90; angle <=180; angle++) 
+    {
+        servo.write(angle);
+        delay(30);
+    }
+        level3=true;
+    }
+      
+      level1=false;
+      
+   
+     
+    } 
+    
+    
+  }
+    }
+}
+void clearData() {
+  //Reset data_count
+
+  //Reset Data
+  Data ="";
+  Data1 ="";
+}
+void sendotp(int password){
+//if (Serial.available()>0)
+ 
+SendMessage(password);
+
+
+if (SIM900A.available()>0)
+Serial.write(SIM900A.read());
+
+
+}
+
+
+void SendMessage(int password)
+{
+  
+Serial.println ("Sending Message please wait….");
+SIM900A.println("AT+CMGF=1"); //Text Mode initialisation
+delay(1000);
+Serial.println ("Set SMS Number");
+SIM900A.println("AT+CMGS=\"+919632433751\"\r"); // Receiver’s Mobile Number
+delay(1000);
+Serial.println ("Set SMS Content");
+SIM900A.println("your OTP is ");
+SIM900A.println(password);// Messsage content
+delay(2000);
+Serial.println ("Done");
+SIM900A.println("");// 
+delay(2000);
+Serial.println ("Message sent succesfully");
+
+
+
+
+}
